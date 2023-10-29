@@ -1,0 +1,146 @@
+---
+title: "Predicting Exercise Performance Using Wearable Devices"
+author: "Sinem Demirci"
+date: "2023-10-29"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This serves as the concluding report for the Practical Machine Learning course on Coursera, a crucial component of the Data Science Specialization track provided by John Hopkins University.
+In this project, our objective is to forecast the exercise technique of 6 participants based on data collected from accelerometers positioned on their belt, forearm, arm, and dumbbell. The target variable for prediction is 'classe' within the training dataset. We train four distinct models -- Decision Tree, Random Forest, Gradient Boosted Trees, and Support Vector Machine -- employing k-fold cross-validation techniques on the training set. Subsequently, we employ a validation set randomly extracted from the training CSV data to assess accuracy and out-of-sample error rates.
+By analyzing these metrics, we identify the most effective model and employ it to predict the outcomes for 20 test cases from the test CSV dataset.
+
+## Loading Data and Libraries
+
+```{r}
+libraries <- c("gbm", "rpart.plot", "rpart", "knitr", "randomForest", 
+                "e1071", "lattice", "ggplot2", "caret", "kernlab", 
+                "rattle", "corrplot")
+lapply(libraries, library, character.only = TRUE)
+set.seed(2023)
+```
+
+```{r}
+traincsv <- read.csv("pml-training.csv")
+testcsv <- read.csv("pml-testing.csv")
+
+dim(traincsv)
+```
+
+```{r}
+dim(testcsv)
+```
+
+## Cleaning the Data
+
+```{r}
+traincsv <- traincsv[,colMeans(is.na(traincsv)) < .9] 
+traincsv <- traincsv[,-c(1:7)] 
+```
+
+```{r}
+nvz <- nearZeroVar(traincsv)
+traincsv <- traincsv[,-nvz]
+dim(traincsv)
+```
+
+With the irrelevant variables successfully removed, it's time to divide the training set into two subsets: a validation set and a sub-training set. The testing set, labeled 'testcsv,' will remain untouched and reserved for the final quiz test cases.
+
+```{r}
+inTrain <- createDataPartition(y=traincsv$classe, p=0.7, list=F)
+train <- traincsv[inTrain,]
+valid <- traincsv[-inTrain,]
+```
+
+## Creating and Evaluating the Models
+
+In this phase, we will assess a selection of well-known models, which include Decision Trees, Random Forest, Gradient Boosted Trees, and Support Vector Machines (SVM). Although we may be testing more models than strictly necessary, it's a valuable exercise for comparison and best practices.
+We will establish a control structure for training, implementing 3-fold cross-validation.
+
+```{r}
+control <- trainControl(method="cv", number=3, verboseIter=F)
+```
+
+## Decision Tree
+
+Model:
+
+```{r}
+mod_trees <- train(classe~., data=train, method="rpart", trControl = control, tuneLength = 5)
+fancyRpartPlot(mod_trees$finalModel)
+```
+
+Prediction:
+
+```{r}
+pred_trees <- predict(mod_trees, valid)
+cmtrees <- confusionMatrix(pred_trees, factor(valid$classe))
+cmtrees
+```
+
+## Random Forest
+
+```{r}
+mod_rf <- train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+pred_rf <- predict(mod_rf, valid)
+cmrf <- confusionMatrix(pred_rf, factor(valid$classe))
+cmrf
+```
+
+## Gradient Boost Trees
+
+```{r}
+mod_gbm <- train(classe~., data=train, method="gbm", trControl = control, tuneLength = 5, verbose = F)
+
+pred_gbm <- predict(mod_gbm, valid)
+cmgbm <- confusionMatrix(pred_gbm, factor(valid$classe))
+cmgbm
+```
+
+## Support Vector Machines
+
+```{r}
+mod_svm <- train(classe~., data=train, method="svmLinear", trControl = control, tuneLength = 5, verbose = F)
+
+pred_svm <- predict(mod_svm, valid)
+cmsvm <- confusionMatrix(pred_svm, factor(valid$classe))
+cmsvm
+```
+
+## Results
+
+The obtained results were used to evaluate the performance of different classification methods. These methods include Random Forest, Gradient Boost Trees, and Support Vector Machines (SVM).
+
+Random Forest: The Random Forest model was identified as the best-performing model with an accuracy of 99.57% and an out-of-sample error rate of 0.42%. This result can be considered sufficient for test data.
+
+Gradient Boost Trees: The Gradient Boost Trees model achieved a successful result with an accuracy of 98.86% and an error rate of 1.14%.
+
+Support Vector Machines (SVM): The SVM model exhibited lower performance with an accuracy of 78.45% and an error rate of 21.55%.
+
+These results indicate that the Random Forest model outperforms the others for test data with 0.9971 accuracy and 0.0029 out of sample error rate.
+
+## Predictions on Test set
+
+Running our test set to predict the classe (5 levels) outcome for 20 cases with the Random Forest model.
+
+```{r}
+pred <- predict(mod_rf, testcsv)
+print(pred)
+```
+
+## Appendix
+
+Correlation matrix of variables in training set
+
+```{r}
+corrPlot <- cor(train[, -length(names(train))])
+corrplot(corrPlot, method="circle", tl.cex = 0.4, tl.srt = 45)
+```
+
